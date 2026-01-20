@@ -550,7 +550,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
+  // Pour Vercel serverless, on ne crée pas de serveur HTTP
+  // Le serveur n'est nécessaire que pour le mode standalone
+  if (process.env.VERCEL) {
+    return; // Pas de serveur HTTP dans l'environnement Vercel
+  }
 
+  const httpServer = createServer(app);
   return httpServer;
 }
