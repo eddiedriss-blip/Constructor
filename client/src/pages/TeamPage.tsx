@@ -301,7 +301,6 @@ export default function TeamPage() {
                       }
                       await handleAddMember(e);
                     }}
-                    disabled={!newMember.name?.trim() || !newMember.role?.trim() || !newMember.email?.trim() || !newMember.login_code?.trim()}
                     className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Ajouter le Membre
