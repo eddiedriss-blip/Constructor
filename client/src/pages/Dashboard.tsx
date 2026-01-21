@@ -51,7 +51,7 @@ export default function Dashboard() {
         <UserAccountButton />
 
         {/* Main Content */}
-        <main className="ml-0 lg:ml-0 p-6 lg:p-8">
+        <main className="ml-0 lg:ml-0 p-4 sm:p-6 lg:p-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={location}
@@ -62,7 +62,7 @@ export default function Dashboard() {
             className="max-w-7xl mx-auto"
           >
             {/* Header */}
-            <div className="mb-8 ml-20">
+            <div className="mb-8 ml-0 sm:ml-20">
               <h1 className="text-4xl font-light tracking-tight text-white mb-2 drop-shadow-lg">
                 Dashboard
               </h1>
@@ -88,7 +88,7 @@ function OverviewTab() {
   return (
     <div className="space-y-6">
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
         <MetricCard
           title="Chiffre d'Affaires"
           value="€165,000"
@@ -120,7 +120,7 @@ function OverviewTab() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card className="bg-black/20 backdrop-blur-xl border border-white/10 shadow-xl rounded-2xl text-white">
           <CardHeader>
             <CardTitle className="text-white font-light">Évolution des Revenus</CardTitle>

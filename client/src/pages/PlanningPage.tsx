@@ -230,7 +230,7 @@ export default function PlanningPage() {
   
   return (
     <PageWrapper>
-      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-6 py-4 rounded-tl-3xl ml-20 pr-20 md:pr-48">
+      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-4 rounded-tl-3xl ml-0 sm:ml-20 pr-4 sm:pr-20 md:pr-48">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">
@@ -274,7 +274,7 @@ export default function PlanningPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 space-y-6 ml-20">
+      <main className="flex-1 p-4 sm:p-6 space-y-6 ml-0 sm:ml-20">
         {/* Contrôles du calendrier */}
         <Card className="bg-black/20 backdrop-blur-xl border border-white/10 text-white">
           <CardHeader>
@@ -308,18 +308,19 @@ export default function PlanningPage() {
 
         {/* Calendrier */}
         <Card className="bg-black/20 backdrop-blur-xl border border-white/10 text-white">
-          <CardContent className="p-6">
+          <CardContent className="p-2 sm:p-6">
             {/* En-têtes des jours */}
-            <div className="grid grid-cols-7 gap-2 mb-4">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 sm:mb-4">
               {dayNames.map(day => (
-                <div key={day} className="text-center text-sm font-semibold text-white/70 py-2">
-                  {day}
+                <div key={day} className="text-center text-xs sm:text-sm font-semibold text-white/70 py-1 sm:py-2">
+                  {day.substring(0, 3)}
                 </div>
               ))}
             </div>
             
-            {/* Grille du calendrier */}
-            <div className="grid grid-cols-7 gap-2">
+            {/* Grille du calendrier - Scrollable horizontalement sur mobile */}
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2 min-w-[700px] sm:min-w-0">
               {days.map((day, index) => {
                 const dayChantiers = getChantiersForDay(day.date);
                 const isToday = day.isToday;
@@ -328,7 +329,7 @@ export default function PlanningPage() {
                   <div
                     key={index}
                     onClick={() => handleDayClick(day.date)}
-                    className={`min-h-[100px] p-2 rounded-lg border cursor-pointer transition-all hover:bg-white/5 ${
+                    className={`min-h-[80px] sm:min-h-[100px] p-1 sm:p-2 rounded-lg border cursor-pointer transition-all hover:bg-white/5 ${
                       day.isCurrentMonth
                         ? isToday
                           ? 'bg-white/10 border-white/30 border-2'
@@ -336,15 +337,15 @@ export default function PlanningPage() {
                         : 'bg-black/5 border-white/5 opacity-50'
                     } ${dayChantiers.length > 0 ? 'hover:border-white/30' : ''}`}
                   >
-                    <div className={`text-sm font-medium mb-1 ${
+                    <div className={`text-xs sm:text-sm font-medium mb-1 ${
                       day.isCurrentMonth ? 'text-white' : 'text-white/50'
                     } ${isToday ? 'text-white font-bold' : ''}`}>
                       {day.date.getDate()}
                     </div>
                     
                     {/* Afficher les chantiers */}
-                    <div className="space-y-1">
-                      {dayChantiers.slice(0, 2).map(chantier => {
+                    <div className="space-y-0.5 sm:space-y-1">
+                      {dayChantiers.slice(0, 1).map(chantier => {
                         const startDate = new Date(chantier.dateDebut);
                         const isStart = day.date.toDateString() === startDate.toDateString();
                         const endDate = calculateEndDate(chantier.dateDebut, chantier.duree);
@@ -353,7 +354,7 @@ export default function PlanningPage() {
                         return (
                           <div
                             key={chantier.id}
-                            className={`text-xs p-1 rounded truncate ${
+                            className={`text-[10px] sm:text-xs p-0.5 sm:p-1 rounded truncate ${
                               chantier.statut === 'planifié'
                                 ? 'bg-blue-500/30 text-blue-200 border border-blue-500/50'
                                 : chantier.statut === 'en cours'
@@ -364,24 +365,21 @@ export default function PlanningPage() {
                           >
                             {isStart && '▶ '}
                             {isEnd && '◀ '}
-                            {chantier.nom}
+                            <span className="hidden sm:inline">{chantier.nom}</span>
+                            <span className="sm:hidden">{chantier.nom.substring(0, 8)}...</span>
                           </div>
                         );
                       })}
-                      {dayChantiers.length > 2 && (
-                        <div className="text-xs text-white/70 font-medium">
-                          +{dayChantiers.length - 2} autre(s) - Cliquez pour voir tout
-                        </div>
-                      )}
-                      {dayChantiers.length > 0 && dayChantiers.length <= 2 && (
-                        <div className="text-xs text-white/50 italic">
-                          Cliquez pour les détails
+                      {dayChantiers.length > 1 && (
+                        <div className="text-[10px] sm:text-xs text-white/70 font-medium">
+                          +{dayChantiers.length - 1}
                         </div>
                       )}
                     </div>
                   </div>
                 );
               })}
+              </div>
             </div>
           </CardContent>
         </Card>

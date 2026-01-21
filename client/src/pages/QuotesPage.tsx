@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as React from 'react';
 import { PageWrapper } from '@/components/PageWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,6 @@ import {
   Building,
   Euro,
   Check,
-  ChevronsUpDown,
   Mail,
   Save
 } from 'lucide-react';
@@ -47,7 +47,7 @@ interface ClientInfo {
 }
 
 export default function QuotesPage() {
-  const { clients } = useChantiers();
+  const { clients, chantiers } = useChantiers();
   const [clientInfo, setClientInfo] = useState<ClientInfo>({
     name: '',
     email: '',
@@ -57,6 +57,7 @@ export default function QuotesPage() {
   const [clientSearchOpen, setClientSearchOpen] = useState(false);
   const [clientSearchValue, setClientSearchValue] = useState('');
 
+  const [selectedChantierId, setSelectedChantierId] = useState<string | undefined>(undefined);
   const [projectType, setProjectType] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
   const [validityDays, setValidityDays] = useState('30');
@@ -67,6 +68,10 @@ export default function QuotesPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showActionDialog, setShowActionDialog] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  
+  // États pour l'affichage progressif des sections
+  const [showProjectSection, setShowProjectSection] = useState(false);
+  const [showQuoteSection, setShowQuoteSection] = useState(false);
 
   const addItem = () => {
     const newItem: QuoteItem = {
@@ -99,6 +104,54 @@ export default function QuotesPage() {
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
   const tva = subtotal * 0.2;
   const total = subtotal + tva;
+
+  // Validation des sections
+  const isClientInfoComplete = () => {
+    return clientInfo.name.trim().length > 0;
+  };
+
+  const isProjectInfoComplete = () => {
+    return projectType.trim().length > 0;
+  };
+
+  // Détecter quand une section est complète pour afficher la suivante
+  React.useEffect(() => {
+    if (isClientInfoComplete() && !showProjectSection) {
+      setShowProjectSection(true);
+    }
+  }, [clientInfo.name, showProjectSection]);
+
+  React.useEffect(() => {
+    if (isProjectInfoComplete() && !showQuoteSection) {
+      setShowQuoteSection(true);
+    }
+  }, [projectType, showQuoteSection]);
+
+  // Gérer la sélection d'un chantier
+  const handleChantierSelect = (chantierId: string | undefined) => {
+    setSelectedChantierId(chantierId);
+    if (chantierId) {
+      const chantier = chantiers.find(c => c.id === chantierId);
+      if (chantier) {
+        // Pré-remplir les informations du projet avec le nom du chantier
+        setProjectDescription(chantier.nom);
+        
+        // Pré-remplir les informations client si disponible
+        const client = clients.find(c => c.id === chantier.clientId);
+        if (client) {
+          setClientInfo({
+            name: client.name,
+            email: client.email || '',
+            phone: client.phone || '',
+            address: client.address || ''
+          });
+        }
+      }
+    } else {
+      // Réinitialiser si aucun chantier sélectionné
+      setProjectDescription('');
+    }
+  };
 
   const generatePDF = () => {
     const doc = new jsPDF();
@@ -344,16 +397,16 @@ export default function QuotesPage() {
         <motion.header
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 pr-20 md:pr-48"
+          className="mb-8 pr-4 sm:pr-20 md:pr-48"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-light tracking-tight text-gray-900 dark:text-white mb-2">
+              <h1 className="text-2xl sm:text-4xl font-light tracking-tight text-gray-900 dark:text-white mb-2">
                 Générateur de Devis
               </h1>
-              <p className="text-gray-600 dark:text-gray-400">Créez des devis professionnels en quelques clics</p>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">Créez des devis professionnels en quelques clics</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               <Button variant="outline" size="sm" className="rounded-xl" onClick={handlePreview} data-testid="button-preview">
                 <FileText className="h-4 w-4 mr-2" />
                 Aperçu
@@ -375,7 +428,7 @@ export default function QuotesPage() {
                 Informations Client
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="client-name" className="text-gray-700 dark:text-gray-300">Nom complet</Label>
                 <div className="flex gap-2">
@@ -485,7 +538,13 @@ export default function QuotesPage() {
           </Card>
 
           {/* Project Information */}
-          <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl rounded-2xl">
+          {showProjectSection && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl rounded-2xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white font-light">
                 <Building className="h-5 w-5 text-violet-500" />
@@ -493,7 +552,30 @@ export default function QuotesPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Sélection d'un chantier existant */}
+              <div className="space-y-2">
+                <Label htmlFor="chantier-select" className="text-gray-700 dark:text-gray-300">Sélectionner un chantier existant (optionnel)</Label>
+                <Select value={selectedChantierId || undefined} onValueChange={(value) => handleChantierSelect(value === 'none' ? undefined : value)}>
+                  <SelectTrigger id="chantier-select" className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                    <SelectValue placeholder="Choisir un chantier..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="none">Aucun chantier</SelectItem>
+                    {chantiers.map((chantier) => (
+                      <SelectItem key={chantier.id} value={chantier.id}>
+                        {chantier.nom} {chantier.clientName ? `- ${chantier.clientName}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedChantierId && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Les informations du chantier ont été pré-remplies. Vous pouvez les modifier si nécessaire.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="project-type" className="text-gray-700 dark:text-gray-300">Type de projet</Label>
                   <Select value={projectType} onValueChange={setProjectType}>
@@ -536,9 +618,17 @@ export default function QuotesPage() {
               </div>
             </CardContent>
           </Card>
+            </motion.div>
+          )}
 
           {/* Quote Items */}
-          <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl rounded-2xl">
+          {showQuoteSection && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl rounded-2xl">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white font-light">
                 <Calculator className="h-5 w-5 text-violet-500" />
@@ -551,8 +641,8 @@ export default function QuotesPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {items.map((item, index) => (
-                <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-                  <div className="md:col-span-5 space-y-2">
+                <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 p-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+                  <div className="sm:col-span-5 space-y-2">
                     <Label className="text-gray-700 dark:text-gray-300">Description</Label>
                     <Input
                       data-testid={`input-item-description-${index}`}
@@ -562,7 +652,7 @@ export default function QuotesPage() {
                       className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
                     />
                   </div>
-                  <div className="md:col-span-2 space-y-2">
+                  <div className="sm:col-span-2 space-y-2">
                     <Label className="text-gray-700 dark:text-gray-300">Quantité</Label>
                     <Input
                       type="number"
@@ -574,7 +664,7 @@ export default function QuotesPage() {
                       className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
                     />
                   </div>
-                  <div className="md:col-span-2 space-y-2">
+                  <div className="sm:col-span-2 space-y-2">
                     <Label className="text-gray-700 dark:text-gray-300">Prix unitaire</Label>
                     <Input
                       type="number"
@@ -586,13 +676,13 @@ export default function QuotesPage() {
                       className="rounded-xl border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
                     />
                   </div>
-                  <div className="md:col-span-2 space-y-2">
+                  <div className="sm:col-span-2 space-y-2">
                     <Label className="text-gray-700 dark:text-gray-300">Total</Label>
                     <div className="h-10 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex items-center text-sm font-medium text-gray-900 dark:text-white">
                       {item.total.toFixed(2)} €
                     </div>
                   </div>
-                  <div className="md:col-span-1 flex items-end">
+                  <div className="sm:col-span-1 flex items-end">
                     {items.length > 1 && (
                       <Button
                         variant="ghost"
@@ -631,6 +721,8 @@ export default function QuotesPage() {
               </div>
             </CardContent>
           </Card>
+            </motion.div>
+          )}
         </main>
       </div>
 
@@ -702,41 +794,43 @@ export default function QuotesPage() {
             <div className="mb-8">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 uppercase tracking-wide">Détail des prestations</h2>
               <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-900/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Description</th>
-                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Qté</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Prix unitaire</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {items.filter(item => item.description || item.quantity > 0 || item.unitPrice > 0).map((item, index) => (
-                      <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                          {item.description || `Prestation ${index + 1}`}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center text-gray-600 dark:text-gray-400">
-                          {item.quantity}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
-                          {item.unitPrice.toFixed(2)} €
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">
-                          {item.total.toFixed(2)} €
-                        </td>
-                      </tr>
-                    ))}
-                    {items.filter(item => item.description || item.quantity > 0 || item.unitPrice > 0).length === 0 && (
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <table className="w-full min-w-[600px] sm:min-w-0">
+                    <thead className="bg-gray-50 dark:bg-gray-900/50">
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                          Aucune prestation ajoutée
-                        </td>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Description</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Qté</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Prix unitaire</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Total</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {items.filter(item => item.description || item.quantity > 0 || item.unitPrice > 0).map((item, index) => (
+                        <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                            {item.description || `Prestation ${index + 1}`}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center text-gray-600 dark:text-gray-400">
+                            {item.quantity}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
+                            {item.unitPrice.toFixed(2)} €
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">
+                            {item.total.toFixed(2)} €
+                          </td>
+                        </tr>
+                      ))}
+                      {items.filter(item => item.description || item.quantity > 0 || item.unitPrice > 0).length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                            Aucune prestation ajoutée
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 

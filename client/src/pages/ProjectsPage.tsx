@@ -230,13 +230,13 @@ export default function ProjectsPage() {
 
   return (
     <PageWrapper>
-      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-6 py-4 rounded-tl-3xl ml-20 pr-20 md:pr-48">
-        <div className="flex items-center justify-between">
+      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-4 rounded-tl-3xl ml-0 sm:ml-20 pr-4 sm:pr-20 md:pr-48">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-xl sm:text-2xl font-bold text-white">
               Mes Chantiers
             </h1>
-            <p className="text-sm text-white/70">Gérez tous vos projets en cours et terminés</p>
+            <p className="text-xs sm:text-sm text-white/70">Gérez tous vos projets en cours et terminés</p>
           </div>
           <div className="flex gap-2">
             <Link href="/dashboard/clients">
@@ -396,7 +396,7 @@ export default function ProjectsPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 ml-20">
+      <main className="flex-1 p-4 sm:p-6 ml-0 sm:ml-20">
         {chantiers.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <Card className="w-full max-w-md text-center bg-black/20 backdrop-blur-xl border border-white/10 text-white">
@@ -421,7 +421,7 @@ export default function ProjectsPage() {
             </Card>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {chantiers.map((chantier) => (
               <Card
                 key={chantier.id}

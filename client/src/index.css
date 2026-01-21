@@ -474,3 +474,40 @@
 .font-geist {
   font-family: var(--font-sans);
 }
+
+/* Mobile optimizations for touch targets and ergonomics */
+@media (max-width: 640px) {
+  /* Ensure minimum touch target size (44x44px recommended by Apple) */
+  button,
+  a,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improve tap highlight */
+  * {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+
+  /* Prevent text size adjustment on iOS */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Improve scrolling on mobile */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Better spacing for touch interactions */
+  button + button,
+  .gap-2 > * + * {
+    margin-left: 0.5rem;
+  }
+}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { Link, useLocation } from 'wouter';
 import { Menu, X, Home, Calculator, Building, Calendar, Workflow, FileText, Users, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -8,7 +8,6 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [location] = useLocation();
   const dragX = useMotionValue(0);
-  const dragOpacity = useTransform(dragX, [-200, 0], [0, 1]);
 
   const menuItems = [
     { icon: Home, label: 'Vue d\'ensemble', path: '/dashboard' },
@@ -87,7 +86,7 @@ export default function Sidebar() {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-6 left-6 z-50 p-3 rounded-xl transition-colors shadow-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+        className="fixed top-4 left-4 sm:top-6 sm:left-6 z-50 p-3 rounded-xl transition-colors shadow-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 min-h-11 min-w-11 sm:min-h-0 sm:min-w-0"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </motion.button>
@@ -116,10 +115,10 @@ export default function Sidebar() {
         dragElastic={0.2}
         onDragEnd={handleDragEnd}
         style={{ x: dragX }}
-        className="fixed top-0 left-0 h-full w-80 z-40 shadow-2xl bg-white dark:bg-gray-800 flex flex-col rounded-r-3xl"
+        className="fixed top-0 left-0 h-full w-full sm:w-80 z-40 shadow-2xl bg-white dark:bg-gray-800 flex flex-col sm:rounded-r-3xl"
       >
         {/* Content */}
-        <div className="flex-1 overflow-hidden p-8 pt-20">
+        <div className="flex-1 overflow-hidden p-4 sm:p-8 pt-16 sm:pt-20">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -127,10 +126,10 @@ export default function Sidebar() {
             transition={{ delay: 0.15, type: 'spring', stiffness: 200 }}
             className="mb-4"
           >
-            <h2 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-gray-900 dark:text-white">
               Constructo
             </h2>
-            <p className="text-sm mb-2 text-gray-600 dark:text-gray-400">
+            <p className="text-xs sm:text-sm mb-2 text-gray-600 dark:text-gray-400">
               Construire pour durer
             </p>
             <motion.div
@@ -164,7 +163,7 @@ export default function Sidebar() {
                     <Link href={item.path} onClick={() => setIsOpen(false)}>
                       <div
                         className={cn(
-                          "flex items-center space-x-3 p-2.5 rounded-lg transition-all cursor-pointer group",
+                          "flex items-center space-x-3 p-3 sm:p-2.5 rounded-lg transition-all cursor-pointer group min-h-11 sm:min-h-0",
                           isActive
                             ? 'bg-violet-50 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400'
                             : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200'
@@ -174,15 +173,15 @@ export default function Sidebar() {
                           whileHover={{ scale: 1.1, rotate: 5 }}
                           whileTap={{ scale: 0.95 }}
                           className={cn(
-                            "p-1.5 rounded-md transition-all duration-300",
+                            "p-2 sm:p-1.5 rounded-md transition-all duration-300",
                             isActive
                               ? 'bg-violet-500 text-white'
                               : 'bg-gray-200 dark:bg-gray-700 group-hover:bg-violet-500 group-hover:text-white'
                           )}
                         >
-                          <item.icon size={16} />
+                          <item.icon size={18} className="sm:w-4 sm:h-4" />
                         </motion.div>
-                        <span className="text-sm font-medium">{item.label}</span>
+                        <span className="text-base sm:text-sm font-medium">{item.label}</span>
                       </div>
                     </Link>
                   </motion.li>

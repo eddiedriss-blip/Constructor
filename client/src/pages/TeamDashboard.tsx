@@ -57,7 +57,7 @@ export default function TeamDashboard() {
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className="flex-1 flex flex-col relative z-10 ml-64 rounded-l-3xl overflow-hidden"
           >
-            <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-6 py-4 rounded-tl-3xl ml-20">
+            <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-4 rounded-tl-3xl ml-0 sm:ml-20">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold text-white">
@@ -103,7 +103,7 @@ export default function TeamDashboard() {
             </div>
 
             {/* Tab Content */}
-            <main className="flex-1 p-6 space-y-6 overflow-auto ml-20">
+            <main className="flex-1 p-4 sm:p-6 space-y-6 overflow-auto ml-0 sm:ml-20">
               {activeTab === 'overview' && (
                 <div className="space-y-6">
                   {/* Stats Cards */}

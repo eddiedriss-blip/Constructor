@@ -6,8 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Plus, User, Mail, Phone, Trash2, Building, Key, Edit2 } from 'lucide-react';
+import { Users, Plus, User, Mail, Phone, Trash2, Building, Key, Edit2, Copy, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
+
 // Interface TeamMember
 interface TeamMember {
   id: string;
@@ -25,8 +26,6 @@ interface TeamMember {
   updated_at?: string;
   updatedAt?: string;
 }
-
-import { Copy, Check } from 'lucide-react';
 
 export default function TeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -76,8 +75,7 @@ export default function TeamPage() {
 
   const handleAddMember = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    
-    console.log('handleAddMember appelé', { newMember });
+    e?.stopPropagation();
     
     // Validation avec trim pour ignorer les espaces
     const name = newMember.name?.trim();
@@ -105,19 +103,14 @@ export default function TeamPage() {
         loginCode: login_code,
       };
       
-      console.log('Envoi de la requête avec:', payload);
-      
       const response = await fetch('/api/team-members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      console.log('Réponse reçue:', response.status, response.statusText);
-
       if (response.ok) {
         const result = await response.json();
-        console.log('Membre créé avec succès:', result);
         
         // Créer un lien d'invitation
         const inviteLink = `${window.location.origin}/invite/${result.id}`;
@@ -199,7 +192,7 @@ export default function TeamPage() {
 
   return (
     <PageWrapper>
-      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-6 py-4 rounded-tl-3xl ml-20 pr-20 md:pr-48">
+      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-4 rounded-tl-3xl ml-0 sm:ml-20 pr-4 sm:pr-20 md:pr-48">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">
@@ -224,7 +217,7 @@ export default function TeamPage() {
               <DialogHeader>
                 <DialogTitle className="text-white">Ajouter un Nouveau Membre</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleAddMember} noValidate>
+              <div>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-white">Nom complet {!newMember.name?.trim() && <span className="text-red-400">*</span>}</Label>
@@ -240,13 +233,13 @@ export default function TeamPage() {
                   <div className="space-y-2">
                     <Label htmlFor="role" className="text-white">Rôle {!newMember.role?.trim() && <span className="text-red-400">*</span>}</Label>
                     <Select 
-                      value={newMember.role || undefined} 
+                      value={newMember.role || ''} 
                       onValueChange={(value) => {
-                        console.log('Rôle sélectionné:', value);
                         setNewMember(prev => ({ ...prev, role: value }));
                       }}
+                      required
                     >
-                      <SelectTrigger className="w-full bg-black/20 border-white/10 text-white">
+                      <SelectTrigger id="role" className="w-full bg-black/20 border-white/10 text-white">
                         <SelectValue placeholder="Sélectionner un rôle" />
                       </SelectTrigger>
                       <SelectContent className="bg-black/30 backdrop-blur-lg border-white/10 text-white">
@@ -298,20 +291,28 @@ export default function TeamPage() {
                     Annuler
                   </Button>
                   <Button 
-                    type="submit"
-                    disabled={!newMember.name?.trim() || !newMember.role?.trim() || !newMember.email?.trim() || !newMember.login_code?.trim()}
+                    type="button"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!newMember.name?.trim() || !newMember.role?.trim() || !newMember.email?.trim() || !newMember.login_code?.trim()) {
+                        alert('Veuillez remplir tous les champs obligatoires');
+                        return;
+                      }
+                      await handleAddMember(e);
+                    }}
                     className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Ajouter le Membre
                   </Button>
                 </DialogFooter>
-              </form>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
       </header>
 
-      <main className="flex-1 p-6 space-y-6 ml-20">
+      <main className="flex-1 p-4 sm:p-6 space-y-6 ml-0 sm:ml-20">
         {/* Membres de l'Équipe */}
         <Card className="bg-black/20 backdrop-blur-xl border border-white/10 text-white">
           <CardHeader>

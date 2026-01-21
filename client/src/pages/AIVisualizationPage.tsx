@@ -132,7 +132,7 @@ export default function AIVisualizationPage() {
 
   return (
     <PageWrapper>
-      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-6 py-4 ml-20">
+      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-4 ml-0 sm:ml-20">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">
@@ -151,7 +151,7 @@ export default function AIVisualizationPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 ml-20">
+      <main className="flex-1 p-4 sm:p-6 ml-0 sm:ml-20">
           {/* Step 1: Upload */}
           {step === 'upload' && (
             <div className="max-w-2xl mx-auto space-y-6">

@@ -7,7 +7,6 @@ export default function Header() {
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
-    console.log('Menu toggled:', !isMenuOpen); // todo: remove mock functionality
   };
 
   return (

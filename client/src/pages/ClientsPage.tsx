@@ -38,6 +38,7 @@ export default function ClientsPage() {
 
   const handleAddClient = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    e?.stopPropagation();
     
     // Validation avec trim pour ignorer les espaces
     const name = newClient.name?.trim();
@@ -116,18 +117,23 @@ export default function ClientsPage() {
 
   return (
     <PageWrapper>
-      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-6 py-4 rounded-tl-3xl ml-20 pr-20 md:pr-48">
-        <div className="flex items-center justify-between">
+      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-4 rounded-tl-3xl ml-0 sm:ml-20 pr-4 sm:pr-20 md:pr-48">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-xl sm:text-2xl font-bold text-white">
               Clients
             </h1>
-            <p className="text-sm text-white/70">
+            <p className="text-xs sm:text-sm text-white/70">
               {selectedClient ? `Chantiers de ${selectedClient.name}` : 'Gérez vos clients et leurs chantiers'}
             </p>
           </div>
           {!selectedClient && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              if (!open) {
+                setNewClient({ name: '', email: '', phone: '', address: '' });
+              }
+              setIsDialogOpen(open);
+            }}>
               <DialogTrigger asChild>
                 <Button className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30">
                   <Plus className="h-4 w-4 mr-2" />
@@ -138,7 +144,7 @@ export default function ClientsPage() {
                 <DialogHeader>
                   <DialogTitle className="text-white">Nouveau Client</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleAddClient} className="space-y-4">
+                <div className="space-y-4">
                   <div>
                     <Label className="text-white">Nom {!newClient.name?.trim() && <span className="text-red-400">*</span>}</Label>
                     <Input
@@ -189,14 +195,44 @@ export default function ClientsPage() {
                       Annuler
                     </Button>
                     <Button
-                      type="submit"
-                      disabled={!newClient.name?.trim() || !newClient.phone?.trim()}
-                      className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                      type="button"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        // Validation
+                        const name = newClient.name?.trim();
+                        const phone = newClient.phone?.trim();
+                        
+                        if (!name || !phone) {
+                          const missing = [];
+                          if (!name) missing.push('nom');
+                          if (!phone) missing.push('téléphone');
+                          alert(`Veuillez remplir tous les champs obligatoires : ${missing.join(', ')}`);
+                          return;
+                        }
+
+                        try {
+                          await addClient({
+                            name,
+                            email: newClient.email?.trim() || undefined,
+                            phone,
+                            address: newClient.address?.trim() || undefined
+                          });
+                          setNewClient({ name: '', email: '', phone: '', address: '' });
+                          setIsDialogOpen(false);
+                        } catch (error: any) {
+                          console.error('Erreur lors de la création du client:', error);
+                          const errorMessage = error?.message || error?.error || 'Erreur lors de la création du client. Vérifiez votre connexion à Supabase.';
+                          alert(errorMessage);
+                        }
+                      }}
+                      className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30"
                     >
                       Ajouter
                     </Button>
                   </div>
-                </form>
+                </div>
               </DialogContent>
             </Dialog>
           )}
@@ -212,9 +248,9 @@ export default function ClientsPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 ml-20">
+      <main className="flex-1 p-4 sm:p-6 ml-0 sm:ml-20">
         {!selectedClient ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {clients.map((client) => (
               <Card
                 key={client.id}
@@ -338,7 +374,7 @@ export default function ClientsPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {clientChantiers.map((chantier) => (
                   <Card
                     key={chantier.id}

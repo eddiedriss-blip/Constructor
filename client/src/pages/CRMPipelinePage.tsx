@@ -7,7 +7,7 @@ import { CRMPipeline } from '@/components/CRMPipeline';
 export default function CRMPipelinePage() {
   return (
     <PageWrapper>
-      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-6 py-4 rounded-tl-3xl ml-20 pr-20 md:pr-48">
+      <header className="bg-black/20 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 py-4 rounded-tl-3xl ml-0 sm:ml-20 pr-4 sm:pr-20 md:pr-48">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white">
@@ -22,7 +22,7 @@ export default function CRMPipelinePage() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 space-y-6 ml-20">
+      <main className="flex-1 p-4 sm:p-6 space-y-6 ml-0 sm:ml-20">
         {/* Configuration Email */}
         <Card className="bg-black/20 backdrop-blur-xl border border-white/10 text-white">
           <CardHeader>
