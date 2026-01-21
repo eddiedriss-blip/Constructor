@@ -1,7 +1,7 @@
 import { PageWrapper } from '@/components/PageWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ export default function ClientsPage() {
   const [location, setLocation] = useLocation();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
@@ -36,37 +37,45 @@ export default function ClientsPage() {
     ? chantiers.filter(c => c.clientId === selectedClient.id)
     : [];
 
-  const handleAddClient = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    e?.stopPropagation();
-    
-    // Validation avec trim pour ignorer les espaces
-    const name = newClient.name?.trim();
-    const email = newClient.email?.trim() || undefined;
-    const phone = newClient.phone?.trim();
-    const address = newClient.address?.trim();
-    
-    if (!name || !phone) {
-      const missing = [];
-      if (!name) missing.push('nom');
-      if (!phone) missing.push('téléphone');
-      alert(`Veuillez remplir tous les champs obligatoires : ${missing.join(', ')}`);
+  const handleAddClient = async () => {
+    console.log('🔵 handleAddClient appelé');
+    if (isSubmitting) {
+      console.log('⚠️ Déjà en cours de soumission');
       return;
     }
 
+    const name = newClient.name?.trim();
+    const phone = newClient.phone?.trim();
+    
+    console.log('📝 Données:', { name, phone, email: newClient.email, address: newClient.address });
+    
+    if (!name || !phone) {
+      alert('Veuillez remplir tous les champs obligatoires (nom et téléphone)');
+      return;
+    }
+
+    setIsSubmitting(true);
+    console.log('⏳ Début de la soumission...');
+    
     try {
-      await addClient({
+      console.log('📤 Appel addClient...');
+      const createdClient = await addClient({
         name,
-        email: email || undefined,
+        email: newClient.email?.trim() || undefined,
         phone,
-        address: address || undefined
+        address: newClient.address?.trim() || undefined
       });
+      
+      console.log('✅ Client créé:', createdClient);
       setNewClient({ name: '', email: '', phone: '', address: '' });
       setIsDialogOpen(false);
+      console.log('🎉 Succès complet');
     } catch (error: any) {
-      console.error('Erreur lors de la création du client:', error);
-      const errorMessage = error?.message || error?.error || 'Erreur lors de la création du client. Vérifiez votre connexion à Supabase.';
-      alert(errorMessage);
+      console.error('❌ Erreur création client:', error);
+      alert(error?.message || 'Erreur lors de la création du client');
+    } finally {
+      setIsSubmitting(false);
+      console.log('🏁 Fin handleAddClient');
     }
   };
 
@@ -129,10 +138,16 @@ export default function ClientsPage() {
           </div>
           {!selectedClient && (
             <Dialog open={isDialogOpen} onOpenChange={(open) => {
-              if (!open) {
-                setNewClient({ name: '', email: '', phone: '', address: '' });
+              if (isSubmitting) {
+                // Empêcher la fermeture si on est en train de soumettre
+                return;
               }
               setIsDialogOpen(open);
+              if (!open) {
+                // Réinitialiser le formulaire quand le dialog se ferme
+                setNewClient({ name: '', email: '', phone: '', address: '' });
+                setIsSubmitting(false);
+              }
             }}>
               <DialogTrigger asChild>
                 <Button className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30">
@@ -140,7 +155,19 @@ export default function ClientsPage() {
                   Ajouter un Client
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-black/20 backdrop-blur-xl border border-white/10 text-white">
+              <DialogContent 
+                className="bg-black/20 backdrop-blur-xl border border-white/10 text-white"
+                onInteractOutside={(e) => {
+                  if (isSubmitting) {
+                    e.preventDefault();
+                  }
+                }}
+                onEscapeKeyDown={(e) => {
+                  if (isSubmitting) {
+                    e.preventDefault();
+                  }
+                }}
+              >
                 <DialogHeader>
                   <DialogTitle className="text-white">Nouveau Client</DialogTitle>
                 </DialogHeader>
@@ -185,7 +212,7 @@ export default function ClientsPage() {
                       className="bg-black/20 backdrop-blur-md border-white/10 text-white placeholder:text-white/50"
                     />
                   </div>
-                  <div className="flex justify-end gap-2">
+                  <DialogFooter>
                     <Button
                       type="button"
                       variant="outline"
@@ -196,42 +223,19 @@ export default function ClientsPage() {
                     </Button>
                     <Button
                       type="button"
-                      onClick={async (e) => {
+                      onClick={(e) => {
+                        console.log('🖱️ BOUTON CLIQUÉ');
                         e.preventDefault();
                         e.stopPropagation();
-                        
-                        // Validation
-                        const name = newClient.name?.trim();
-                        const phone = newClient.phone?.trim();
-                        
-                        if (!name || !phone) {
-                          const missing = [];
-                          if (!name) missing.push('nom');
-                          if (!phone) missing.push('téléphone');
-                          alert(`Veuillez remplir tous les champs obligatoires : ${missing.join(', ')}`);
-                          return;
-                        }
-
-                        try {
-                          await addClient({
-                            name,
-                            email: newClient.email?.trim() || undefined,
-                            phone,
-                            address: newClient.address?.trim() || undefined
-                          });
-                          setNewClient({ name: '', email: '', phone: '', address: '' });
-                          setIsDialogOpen(false);
-                        } catch (error: any) {
-                          console.error('Erreur lors de la création du client:', error);
-                          const errorMessage = error?.message || error?.error || 'Erreur lors de la création du client. Vérifiez votre connexion à Supabase.';
-                          alert(errorMessage);
-                        }
+                        console.log('🖱️ Appel handleAddClient depuis le bouton');
+                        handleAddClient();
                       }}
-                      className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30"
+                      disabled={isSubmitting || !newClient.name?.trim() || !newClient.phone?.trim()}
+                      className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Ajouter
+                      {isSubmitting ? 'Ajout en cours...' : 'Ajouter'}
                     </Button>
-                  </div>
+                  </DialogFooter>
                 </div>
               </DialogContent>
             </Dialog>
@@ -250,6 +254,23 @@ export default function ClientsPage() {
 
       <main className="flex-1 p-4 sm:p-6 ml-0 sm:ml-20">
         {!selectedClient ? (
+          clients.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <Card className="w-full max-w-md text-center bg-black/20 backdrop-blur-xl border border-white/10 text-white">
+                <CardHeader className="pb-4">
+                  <div className="w-16 h-16 mx-auto rounded-xl bg-black/20 backdrop-blur-md border border-white/10 flex items-center justify-center mb-4">
+                    <User className="h-8 w-8 text-white/70" />
+                  </div>
+                  <CardTitle className="text-xl text-white">Aucun client</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-white/70 mb-4">
+                    Commencez par ajouter votre premier client
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {clients.map((client) => (
               <Card
@@ -314,6 +335,7 @@ export default function ClientsPage() {
               </Card>
             ))}
           </div>
+          )
         ) : (
           <div>
             <Card className="bg-black/20 backdrop-blur-xl border border-white/10 text-white mb-6">

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building, Plus, Calendar, Clock, User, Image as ImageIcon, X, Users as UsersIcon } from 'lucide-react';
+import { Building, Plus, Calendar, Clock, User, Image as ImageIcon, X, Users as UsersIcon, Edit2, Trash2 } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useChantiers, Chantier, Client } from '@/context/ChantiersContext';
@@ -29,9 +29,11 @@ interface ChantierAssignment {
 }
 
 export default function ProjectsPage() {
-  const { chantiers, clients, addChantier, addClient } = useChantiers();
+  const { chantiers, clients, addChantier, updateChantier, deleteChantier, addClient } = useChantiers();
   const [location] = useLocation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingChantier, setEditingChantier] = useState<Chantier | null>(null);
   const [newChantier, setNewChantier] = useState({
     nom: '',
     clientId: '',
@@ -39,7 +41,16 @@ export default function ProjectsPage() {
     duree: '',
     images: [] as string[]
   });
+  const [editingChantierData, setEditingChantierData] = useState({
+    nom: '',
+    clientId: '',
+    dateDebut: '',
+    duree: '',
+    statut: 'planifié' as 'planifié' | 'en cours' | 'terminé',
+    images: [] as string[]
+  });
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [editingUploadedImages, setEditingUploadedImages] = useState<File[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [assignments, setAssignments] = useState<Record<string, ChantierAssignment[]>>({});
   const [selectedChantierForAssignment, setSelectedChantierForAssignment] = useState<string | null>(null);
@@ -48,8 +59,30 @@ export default function ProjectsPage() {
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      setUploadedImages(prev => [...prev, ...files]);
+      const maxSize = 5 * 1024 * 1024; // 5MB par fichier
+      
+      // Vérifier la taille de chaque fichier
+      const validFiles: File[] = [];
+      const invalidFiles: string[] = [];
+      
       files.forEach(file => {
+        if (file.size > maxSize) {
+          invalidFiles.push(file.name);
+        } else {
+          validFiles.push(file);
+        }
+      });
+      
+      if (invalidFiles.length > 0) {
+        alert(`Les fichiers suivants sont trop volumineux (max 5MB) : ${invalidFiles.join(', ')}`);
+      }
+      
+      if (validFiles.length === 0) {
+        return;
+      }
+      
+      setUploadedImages(prev => [...prev, ...validFiles]);
+      validFiles.forEach(file => {
         const reader = new FileReader();
         reader.onload = (e) => {
           if (e.target?.result) {
@@ -70,6 +103,150 @@ export default function ProjectsPage() {
       images: prev.images.filter((_, i) => i !== index)
     }));
     setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEditImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      const maxSize = 5 * 1024 * 1024; // 5MB par fichier
+      
+      const validFiles: File[] = [];
+      const invalidFiles: string[] = [];
+      
+      files.forEach(file => {
+        if (file.size > maxSize) {
+          invalidFiles.push(file.name);
+        } else {
+          validFiles.push(file);
+        }
+      });
+      
+      if (invalidFiles.length > 0) {
+        alert(`Les fichiers suivants sont trop volumineux (max 5MB) : ${invalidFiles.join(', ')}`);
+      }
+      
+      if (validFiles.length === 0) {
+        return;
+      }
+      
+      setEditingUploadedImages(prev => [...prev, ...validFiles]);
+      validFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            setEditingChantierData(prev => ({
+              ...prev,
+              images: [...prev.images, e.target.result as string]
+            }));
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  }, []);
+
+  const removeEditImage = (index: number) => {
+    setEditingChantierData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+    setEditingUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEditChantier = (chantier: Chantier) => {
+    setEditingChantier(chantier);
+    setEditingChantierData({
+      nom: chantier.nom,
+      clientId: chantier.clientId,
+      dateDebut: chantier.dateDebut,
+      duree: chantier.duree,
+      statut: chantier.statut,
+      images: [...chantier.images]
+    });
+    setEditingUploadedImages([]);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateChantier = async (e?: React.FormEvent) => {
+    console.log('=== DÉBUT MISE À JOUR CHANTIER ===');
+    console.log('handleUpdateChantier appelé');
+    e?.preventDefault();
+    
+    if (!editingChantier) {
+      console.error('editingChantier est null!');
+      alert('Erreur: aucun chantier en cours d\'édition');
+      return;
+    }
+    
+    console.log('editingChantier:', editingChantier);
+    console.log('editingChantierData:', editingChantierData);
+    console.log('updateChantier défini?', typeof updateChantier);
+    
+    if (!updateChantier) {
+      console.error('updateChantier n\'est pas défini!');
+      alert('Erreur: fonction updateChantier non disponible');
+      return;
+    }
+    
+    const nom = editingChantierData.nom?.trim();
+    const clientId = editingChantierData.clientId?.trim();
+    const dateDebut = editingChantierData.dateDebut?.trim();
+    const duree = editingChantierData.duree?.trim();
+    
+    console.log('Données validées:', { nom, clientId, dateDebut, duree, statut: editingChantierData.statut, imagesCount: editingChantierData.images?.length || 0 });
+    
+    if (!nom || !clientId || !dateDebut || !duree) {
+      alert('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    try {
+      console.log('Appel updateChantier avec:', {
+        id: editingChantier.id,
+        nom,
+        clientId,
+        dateDebut,
+        duree,
+        statut: editingChantierData.statut,
+        images: editingChantierData.images || []
+      });
+      await updateChantier(editingChantier.id, {
+        nom,
+        clientId,
+        dateDebut,
+        duree,
+        statut: editingChantierData.statut,
+        images: editingChantierData.images || []
+      });
+      console.log('Chantier mis à jour avec succès');
+      setIsEditDialogOpen(false);
+      setEditingChantier(null);
+      setEditingChantierData({ nom: '', clientId: '', dateDebut: '', duree: '', statut: 'planifié', images: [] });
+      setEditingUploadedImages([]);
+      console.log('=== FIN MISE À JOUR CHANTIER (SUCCÈS) ===');
+    } catch (error: any) {
+      console.error('=== ERREUR LORS DE LA MISE À JOUR ===');
+      console.error('Erreur complète:', error);
+      console.error('Message:', error?.message);
+      console.error('Stack:', error?.stack);
+      const errorMessage = error?.message || error?.error || 'Erreur lors de la mise à jour du chantier.';
+      alert(errorMessage);
+      console.log('=== FIN MISE À JOUR CHANTIER (ERREUR) ===');
+    }
+  };
+
+  const handleDeleteChantier = async (id: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce chantier ?')) {
+      return;
+    }
+
+    try {
+      await deleteChantier(id);
+    } catch (error: any) {
+      console.error('Erreur lors de la suppression du chantier:', error);
+      const errorMessage = error?.message || error?.error || 'Erreur lors de la suppression du chantier.';
+      alert(errorMessage);
+    }
   };
 
   const handleAddChantier = async (e?: React.FormEvent) => {
@@ -391,12 +568,14 @@ export default function ProjectsPage() {
                     <Button
                       type="button"
                       onClick={async (e) => {
+                        console.log('Bouton Ajouter chantier cliqué');
                         e.preventDefault();
                         e.stopPropagation();
                         if (!newChantier.nom?.trim() || !newChantier.clientId?.trim() || !newChantier.dateDebut?.trim() || !newChantier.duree?.trim()) {
                           alert('Veuillez remplir tous les champs obligatoires');
                           return;
                         }
+                        console.log('Appel handleAddChantier...');
                         await handleAddChantier(e);
                       }}
                       disabled={!newChantier.nom?.trim() || !newChantier.clientId?.trim() || !newChantier.dateDebut?.trim() || !newChantier.duree?.trim()}
@@ -441,7 +620,7 @@ export default function ProjectsPage() {
             {chantiers.map((chantier) => (
               <Card
                 key={chantier.id}
-                className="bg-black/20 backdrop-blur-xl border border-white/10 text-white hover:shadow-lg transition-shadow cursor-pointer"
+                className="bg-black/20 backdrop-blur-xl border border-white/10 text-white hover:shadow-lg transition-shadow cursor-pointer relative group"
               >
                 {chantier.images.length > 0 && (
                   <div className="relative h-48 overflow-hidden rounded-t-lg">
@@ -459,10 +638,38 @@ export default function ProjectsPage() {
                   </div>
                 )}
                 <CardHeader>
-                  <CardTitle className="text-lg">{chantier.nom}</CardTitle>
-                  <div className="flex items-center gap-2 text-sm text-white/70">
-                    <User className="h-4 w-4" />
-                    {chantier.clientName}
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{chantier.nom}</CardTitle>
+                      <div className="flex items-center gap-2 text-sm text-white/70">
+                        <User className="h-4 w-4" />
+                        {chantier.clientName}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditChantier(chantier);
+                        }}
+                        className="h-8 w-8 p-0 text-white hover:bg-white/20"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteChantier(chantier.id);
+                        }}
+                        className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/20"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -595,6 +802,162 @@ export default function ProjectsPage() {
               Fermer
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog pour modifier un chantier */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open);
+        if (!open) {
+          setEditingChantier(null);
+          setEditingChantierData({ nom: '', clientId: '', dateDebut: '', duree: '', statut: 'planifié', images: [] });
+          setEditingUploadedImages([]);
+        }
+      }}>
+        <DialogContent className="bg-black/20 backdrop-blur-xl border border-white/10 text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-white">Modifier le Chantier</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-white">Nom du chantier {!editingChantierData.nom?.trim() && <span className="text-red-400">*</span>}</Label>
+              <Input
+                value={editingChantierData.nom}
+                onChange={(e) => setEditingChantierData({ ...editingChantierData, nom: e.target.value })}
+                placeholder="Ex: Rénovation salle de bain"
+                className="bg-black/20 backdrop-blur-md border-white/10 text-white placeholder:text-white/50"
+                required
+              />
+            </div>
+
+            <div>
+              <Label className="text-white">Client {!editingChantierData.clientId && <span className="text-red-400">*</span>}</Label>
+              <Select
+                value={editingChantierData.clientId}
+                onValueChange={(value) => setEditingChantierData({ ...editingChantierData, clientId: value })}
+              >
+                <SelectTrigger className="bg-black/20 backdrop-blur-md border-white/10 text-white">
+                  <SelectValue placeholder="Sélectionner un client" />
+                </SelectTrigger>
+                <SelectContent className="bg-black/20 backdrop-blur-xl border-white/10">
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id} className="text-white">
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-white">Date de début {!editingChantierData.dateDebut?.trim() && <span className="text-red-400">*</span>}</Label>
+                <Input
+                  type="date"
+                  value={editingChantierData.dateDebut}
+                  onChange={(e) => setEditingChantierData({ ...editingChantierData, dateDebut: e.target.value })}
+                  className="bg-black/20 backdrop-blur-md border-white/10 text-white"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-white">Durée {!editingChantierData.duree?.trim() && <span className="text-red-400">*</span>}</Label>
+                <Input
+                  value={editingChantierData.duree}
+                  onChange={(e) => setEditingChantierData({ ...editingChantierData, duree: e.target.value })}
+                  placeholder="Ex: 2 semaines"
+                  className="bg-black/20 backdrop-blur-md border-white/10 text-white placeholder:text-white/50"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-white">Statut</Label>
+              <Select
+                value={editingChantierData.statut}
+                onValueChange={(value) => setEditingChantierData({ ...editingChantierData, statut: value as 'planifié' | 'en cours' | 'terminé' })}
+              >
+                <SelectTrigger className="bg-black/20 backdrop-blur-md border-white/10 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black/20 backdrop-blur-xl border-white/10">
+                  <SelectItem value="planifié" className="text-white">Planifié</SelectItem>
+                  <SelectItem value="en cours" className="text-white">En cours</SelectItem>
+                  <SelectItem value="terminé" className="text-white">Terminé</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-white">Images</Label>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleEditImageUpload}
+                className="hidden"
+                id="edit-chantier-images"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => document.getElementById('edit-chantier-images')?.click()}
+                className="w-full text-white border-white/20 hover:bg-white/10"
+              >
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Ajouter des images
+              </Button>
+              {editingChantierData.images.length > 0 && (
+                <div className="grid grid-cols-4 gap-2 mt-2">
+                  {editingChantierData.images.map((img, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={img}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-20 object-cover rounded-lg border border-white/20"
+                      />
+                      <button
+                        onClick={() => removeEditImage(index)}
+                        className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+                className="text-white border-white/20 hover:bg-white/10"
+              >
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                onClick={async (e) => {
+                  console.log('Bouton Enregistrer cliqué');
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!editingChantierData.nom?.trim() || !editingChantierData.clientId?.trim() || !editingChantierData.dateDebut?.trim() || !editingChantierData.duree?.trim()) {
+                    alert('Veuillez remplir tous les champs obligatoires');
+                    return;
+                  }
+                  console.log('Appel handleUpdateChantier...');
+                  await handleUpdateChantier(e);
+                }}
+                disabled={!editingChantierData.nom?.trim() || !editingChantierData.clientId?.trim() || !editingChantierData.dateDebut?.trim() || !editingChantierData.duree?.trim()}
+                className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Enregistrer
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </PageWrapper>

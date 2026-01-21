@@ -12,17 +12,26 @@ let db: ReturnType<typeof drizzle> | undefined;
 
 if (process.env.DATABASE_URL) {
   try {
+    // Utiliser le pooler Supabase si disponible (port 6543), sinon connexion directe (port 5432)
+    const dbUrl = process.env.DATABASE_URL;
+    const usePooler = dbUrl.includes(':6543/') || dbUrl.includes('pooler.supabase.com');
+    
     // Créer la connexion PostgreSQL avec Supabase
-    sql = postgres(process.env.DATABASE_URL, {
-      max: 1, // Limiter les connexions pour Supabase (mode serverless)
+    sql = postgres(dbUrl, {
+      max: usePooler ? 10 : 1, // Plus de connexions avec le pooler
       idle_timeout: 20,
-      connect_timeout: 10,
+      connect_timeout: 20, // Timeout de connexion réduit
+      max_lifetime: 60 * 30, // 30 minutes
+      prepare: false, // Désactiver le prepared statements pour éviter les timeouts
+      connection: {
+        application_name: 'constructor-app',
+      },
     });
     
     // Initialiser Drizzle avec le client postgres
     db = drizzle(sql, { schema });
     
-    console.log("✅ Connexion à Supabase établie");
+    console.log(`✅ Connexion à Supabase établie (${usePooler ? 'pooler' : 'directe'})`);
   } catch (error) {
     console.error("❌ Erreur lors de la connexion à Supabase:", error);
     console.error("   Vérifiez que DATABASE_URL est correct dans votre fichier .env");

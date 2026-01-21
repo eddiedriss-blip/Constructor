@@ -3,8 +3,8 @@ import express from 'express';
 
 // Créer une instance Express pour Vercel serverless
 const app = express();
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 let routesInitialized = false;
 
