@@ -245,7 +245,14 @@ export default function ProjectsPage() {
                 Clients
               </Button>
             </Link>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                // Réinitialiser le formulaire quand le dialog se ferme
+                setNewChantier({ nom: '', clientId: '', dateDebut: '', duree: '', images: [] });
+                setUploadedImages([]);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30">
                   <Plus className="h-4 w-4 mr-2" />
@@ -256,7 +263,7 @@ export default function ProjectsPage() {
                 <DialogHeader>
                   <DialogTitle className="text-white">Nouveau Chantier</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleAddChantier} className="space-y-4">
+                <div className="space-y-4">
                   <div>
                     <Label className="text-white">Nom du chantier {!newChantier.nom?.trim() && <span className="text-red-400">*</span>}</Label>
                     <Input
@@ -382,14 +389,23 @@ export default function ProjectsPage() {
                       Annuler
                     </Button>
                     <Button
-                      type="submit"
+                      type="button"
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!newChantier.nom?.trim() || !newChantier.clientId?.trim() || !newChantier.dateDebut?.trim() || !newChantier.duree?.trim()) {
+                          alert('Veuillez remplir tous les champs obligatoires');
+                          return;
+                        }
+                        await handleAddChantier(e);
+                      }}
                       disabled={!newChantier.nom?.trim() || !newChantier.clientId?.trim() || !newChantier.dateDebut?.trim() || !newChantier.duree?.trim()}
                       className="bg-white/20 backdrop-blur-md text-white border border-white/10 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Ajouter
                     </Button>
                   </div>
-                </form>
+                </div>
               </DialogContent>
             </Dialog>
           </div>
