@@ -13,7 +13,8 @@ async function initializeRoutes() {
   if (routesInitialized) return;
   
   // Importer dynamiquement pour éviter les problèmes de modules
-  const { registerRoutes } = await import('../server/routes');
+  // Utiliser l'extension .js car Vercel compile TypeScript en JavaScript
+  const { registerRoutes } = await import('../server/routes.js');
   
   // Pour Vercel, on n'a pas besoin du serveur HTTP
   // On enregistre juste les routes
