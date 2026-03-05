@@ -10,9 +10,20 @@ import { clients, chantiers, teamMembers, chantierTeamMembers, depenses, facture
 import { eq, and, desc, asc, gte, lte, sql } from "drizzle-orm";
 
 // Dossier uploads pour justificatifs (créé au démarrage si besoin)
-const uploadsDir = path.join(process.cwd(), "uploads", "justificatifs");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// - En local / mode standalone : on utilise le dossier du projet
+// - Sur Vercel (serverless, FS en lecture seule) : on bascule sur /tmp pour éviter les erreurs d'écriture
+const baseUploadsRoot =
+  process.env.VERCEL === "1" || process.env.VERCEL === "true"
+    ? path.join("/tmp", "uploads")
+    : path.join(process.cwd(), "uploads");
+const uploadsDir = path.join(baseUploadsRoot, "justificatifs");
+
+try {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch {
+  // En environnement strictement read-only, on laisse multer lever une erreur explicite au moment de l'upload
 }
 
 // Configuration multer pour l'upload de fichiers (mémoire, estimation/visualisation)
