@@ -11,6 +11,9 @@ vite.config.ts.*
 .env.production
 .env.*.local
 
+# Uploads (justificatifs comptabilité)
+uploads/
+
 # Logs
 *.log
 npm-debug.log*

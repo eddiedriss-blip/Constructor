@@ -1,13 +1,21 @@
-import type { Express } from "express";
+import express, { type Express, type Request as ExpressRequest } from "express";
 import { createServer, type Server } from "http";
+import path from "path";
+import fs from "fs";
 import { analyzeConstructionImage, generateVisualization } from "./openai";
 import multer from "multer";
 import { log } from "./vite";
 import { db } from "./db";
-import { clients, chantiers, teamMembers, chantierTeamMembers, insertClientSchema, insertChantierSchema, insertTeamMemberSchema, insertChantierTeamMemberSchema } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { clients, chantiers, teamMembers, chantierTeamMembers, depenses, factures, chaudieres, interventionsChaudieres, insertClientSchema, insertChantierSchema, insertTeamMemberSchema, insertChantierTeamMemberSchema, insertDepenseSchema, insertFactureSchema, insertChaudiereSchema, insertInterventionChaudiereSchema } from "@shared/schema";
+import { eq, and, desc, asc, gte, lte, sql } from "drizzle-orm";
 
-// Configuration multer pour l'upload de fichiers
+// Dossier uploads pour justificatifs (créé au démarrage si besoin)
+const uploadsDir = path.join(process.cwd(), "uploads", "justificatifs");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configuration multer pour l'upload de fichiers (mémoire, estimation/visualisation)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -15,7 +23,34 @@ const upload = multer({
   },
 });
 
+// Multer pour justificatifs dépenses : stockage disque, max 5MB, JPG/PNG/PDF
+const justificatifStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || path.extname(file.mimetype === "application/pdf" ? ".pdf" : ".jpg");
+    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`;
+    cb(null, safeName);
+  },
+});
+const ALLOWED_MIMES = ["image/jpeg", "image/png", "application/pdf"];
+const uploadJustificatif = multer({
+  storage: justificatifStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIMES.includes(file.mimetype)) return cb(null, true);
+    cb(new Error("Format accepté : JPG, PNG ou PDF uniquement."));
+  },
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Servir les justificatifs uploadés
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+  // Helper : récupérer userId (header X-User-Id pour compatibilité auth mock)
+  const getUserId = (req: ExpressRequest): string => {
+    const v = req.headers["x-user-id"];
+    return (Array.isArray(v) ? v[0] : v) || "default-user";
+  };
 
   // Route pour l'estimation IA
   app.post("/api/estimation/analyze", upload.array("images", 10), async (req, res) => {
@@ -544,6 +579,434 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- Comptabilité : upload justificatif
+  app.post("/api/depenses/upload-justificatif", uploadJustificatif.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Aucun fichier fourni. Formats acceptés : JPG, PNG, PDF (max 5 Mo)." });
+      }
+      const url = `/uploads/justificatifs/${req.file.filename}`;
+      res.json({ url, nom: req.file.originalname });
+    } catch (err: any) {
+      log(`Erreur upload justificatif: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de l'upload du justificatif." });
+    }
+  });
+
+  // --- Comptabilité : CRUD dépenses
+  app.get("/api/depenses", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const list = await db.select().from(depenses).where(eq(depenses.userId, userId)).orderBy(desc(depenses.date));
+      res.json(list);
+    } catch (err: any) {
+      log(`Erreur GET depenses: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de la récupération des dépenses." });
+    }
+  });
+
+  app.post("/api/depenses", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const body = req.body;
+      if (!body.date || !body.fournisseur || body.montantTtc == null || !body.categorie || !body.justificatifUrl || !body.justificatifNom) {
+        return res.status(400).json({ error: "Champs obligatoires : date, fournisseur, montantTtc, categorie, justificatifUrl, justificatifNom." });
+      }
+      const data = {
+        userId,
+        date: body.date,
+        fournisseur: String(body.fournisseur).trim(),
+        montantTtc: String(body.montantTtc),
+        categorie: String(body.categorie).trim(),
+        chantierId: body.chantierId && body.chantierId !== "" ? body.chantierId : null,
+        description: body.description ? String(body.description).trim() : null,
+        justificatifUrl: String(body.justificatifUrl),
+        justificatifNom: String(body.justificatifNom),
+        tauxTva: body.tauxTva != null ? String(body.tauxTva) : null,
+      };
+      const validated = insertDepenseSchema.parse({ ...data, userId: undefined } as any);
+      const [row] = await db.insert(depenses).values({ ...validated, userId }).returning();
+      log(`Dépense créée: ${row?.id}`, "api");
+      res.status(201).json(row);
+    } catch (err: any) {
+      if (err?.name === "ZodError") {
+        const msg = err.errors?.map((e: any) => `${e.path?.join?.(".")}: ${e.message}`).join(", ") || "Données invalides";
+        return res.status(400).json({ error: msg });
+      }
+      log(`Erreur POST depenses: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de l'enregistrement de la dépense." });
+    }
+  });
+
+  app.put("/api/depenses/:id", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const [existing] = await db.select().from(depenses).where(eq(depenses.id, id)).limit(1);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ error: "Dépense non trouvée." });
+      }
+      const body = req.body;
+      const updates: Record<string, any> = { updatedAt: new Date() };
+      if (body.date != null) updates.date = body.date;
+      if (body.fournisseur != null) updates.fournisseur = String(body.fournisseur).trim();
+      if (body.montantTtc != null) updates.montantTtc = String(body.montantTtc);
+      if (body.categorie != null) updates.categorie = String(body.categorie).trim();
+      if (body.chantierId !== undefined) updates.chantierId = body.chantierId && body.chantierId !== "" ? body.chantierId : null;
+      if (body.description !== undefined) updates.description = body.description ? String(body.description).trim() : null;
+      if (body.justificatifUrl != null) updates.justificatifUrl = body.justificatifUrl;
+      if (body.justificatifNom != null) updates.justificatifNom = body.justificatifNom;
+      if (body.tauxTva !== undefined) updates.tauxTva = body.tauxTva != null ? String(body.tauxTva) : null;
+      const [updated] = await db.update(depenses).set(updates).where(eq(depenses.id, id)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      log(`Erreur PUT depenses: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de la mise à jour." });
+    }
+  });
+
+  app.delete("/api/depenses/:id", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const [existing] = await db.select().from(depenses).where(eq(depenses.id, id)).limit(1);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ error: "Dépense non trouvée." });
+      }
+      await db.delete(depenses).where(eq(depenses.id, id));
+      log(`Dépense supprimée: ${id}`, "api");
+      res.status(204).send();
+    } catch (err: any) {
+      log(`Erreur DELETE depenses: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de la suppression." });
+    }
+  });
+
+  // --- Comptabilité : factures (pour export)
+  app.get("/api/factures", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const dateDebut = req.query.dateDebut as string | undefined;
+      const dateFin = req.query.dateFin as string | undefined;
+      const conditions = [eq(factures.userId, userId)];
+      if (dateDebut) conditions.push(gte(factures.date, dateDebut));
+      if (dateFin) conditions.push(lte(factures.date, dateFin));
+      const list = await db.select().from(factures).where(and(...conditions)).orderBy(desc(factures.date));
+      res.json(list);
+    } catch (err: any) {
+      log(`Erreur GET factures: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de la récupération des factures." });
+    }
+  });
+
+  app.post("/api/factures", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const body = req.body;
+      if (!body.date || !body.numero || !body.tiers || body.montantTtc == null) {
+        return res.status(400).json({ error: "Champs obligatoires : date, numero, tiers, montantTtc." });
+      }
+      const data = {
+        userId,
+        date: body.date,
+        numero: String(body.numero).trim(),
+        tiers: String(body.tiers).trim(),
+        description: body.description ? String(body.description).trim() : null,
+        montantTtc: String(body.montantTtc),
+        montantHt: body.montantHt != null ? String(body.montantHt) : null,
+        tva: body.tva != null ? String(body.tva) : null,
+        chantierId: body.chantierId && body.chantierId !== "" ? body.chantierId : null,
+      };
+      const [row] = await db.insert(factures).values({
+        userId,
+        date: data.date,
+        numero: data.numero,
+        tiers: data.tiers,
+        description: data.description,
+        montantTtc: data.montantTtc,
+        montantHt: data.montantHt,
+        tva: data.tva,
+        chantierId: data.chantierId,
+      }).returning();
+      log(`Facture créée: ${row?.id}`, "api");
+      res.status(201).json(row);
+    } catch (err: any) {
+      log(`Erreur POST factures: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de la création de la facture." });
+    }
+  });
+
+  // --- Comptabilité : export CSV
+  app.get("/api/comptabilite/export-csv", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const dateDebut = (req.query.dateDebut as string) || "";
+      const dateFin = (req.query.dateFin as string) || "";
+      if (!dateDebut || !dateFin) {
+        return res.status(400).json({ error: "Paramètres dateDebut et dateFin requis (YYYY-MM-DD)." });
+      }
+      const depensesList = await db
+        .select()
+        .from(depenses)
+        .where(and(eq(depenses.userId, userId), gte(depenses.date, dateDebut), lte(depenses.date, dateFin)))
+        .orderBy(depenses.date);
+      const facturesList = await db
+        .select()
+        .from(factures)
+        .where(and(eq(factures.userId, userId), gte(factures.date, dateDebut), lte(factures.date, dateFin)))
+        .orderBy(factures.date);
+
+      const formatDate = (d: string) => {
+        const [y, m, day] = String(d).split("-");
+        return `${day}/${m}/${y}`;
+      };
+      const defaultTva = 20;
+      const computeHtTva = (ttc: number, taux?: string | null) => {
+        const rate = taux != null ? parseFloat(String(taux)) : defaultTva;
+        const ht = ttc / (1 + rate / 100);
+        const tva = ttc - ht;
+        return { ht, tva };
+      };
+
+      const rows: string[] = [];
+      const header = "Date;Type;Numero;Tiers;Description;MontantHT;TVA;MontantTTC;Categorie;Chantier;Justificatif";
+      rows.push(header);
+
+      for (const f of facturesList) {
+        const ttc = parseFloat(String(f.montantTtc ?? 0));
+        const { ht, tva } = f.montantHt != null && f.tva != null
+          ? { ht: parseFloat(String(f.montantHt)), tva: parseFloat(String(f.tva)) }
+          : computeHtTva(ttc, null);
+        rows.push([
+          formatDate(String(f.date)),
+          "Facture client",
+          f.numero ?? "",
+          f.tiers ?? "",
+          (f.description ?? "").replace(/;/g, ","),
+          ht.toFixed(2),
+          tva.toFixed(2),
+          ttc.toFixed(2),
+          "Prestation",
+          "", // chantier nom peut être joint plus tard
+          "",
+        ].join(";"));
+      }
+      for (const d of depensesList) {
+        const ttc = parseFloat(String(d.montantTtc ?? 0));
+        const { ht, tva } = computeHtTva(ttc, d.tauxTva);
+        const chantierNom = ""; // on pourrait joindre chantiers pour avoir le nom
+        rows.push([
+          formatDate(String(d.date)),
+          "Dépense",
+          `DEP-${d.id.slice(0, 8)}`,
+          d.fournisseur ?? "",
+          (d.description ?? "").replace(/;/g, ","),
+          ht.toFixed(2),
+          tva.toFixed(2),
+          ttc.toFixed(2),
+          d.categorie ?? "",
+          chantierNom,
+          d.justificatifUrl ?? "",
+        ].join(";"));
+      }
+
+      if (rows.length <= 1) {
+        return res.status(200).json({ empty: true, message: "Aucune donnée à exporter sur cette période." });
+      }
+
+      const csv = rows.join("\r\n");
+      const filename = `Export_Comptable_${dateDebut}_${dateFin}.csv`;
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send("\uFEFF" + csv); // BOM pour Excel
+    } catch (err: any) {
+      log(`Erreur export CSV: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de la génération de l'export." });
+    }
+  });
+
+  // --- Chaudières : CRUD
+  app.get("/api/chaudieres", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const list = await db.select().from(chaudieres).where(eq(chaudieres.userId, userId)).orderBy(asc(chaudieres.dateProchainEntretien));
+      res.json(list);
+    } catch (err: any) {
+      log(`Erreur GET chaudieres: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de la récupération des chaudières." });
+    }
+  });
+
+  app.get("/api/chaudieres/counts", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const list = await db.select({ dateProchainEntretien: chaudieres.dateProchainEntretien, typeContrat: chaudieres.typeContrat }).from(chaudieres).where(eq(chaudieres.userId, userId));
+      const today = new Date().toISOString().slice(0, 10);
+      let urgent = 0;
+      let echu = 0;
+      for (const ch of list) {
+        if (ch.typeContrat === "Pas de contrat") continue;
+        const d = String(ch.dateProchainEntretien).split("T")[0];
+        const diff = Math.floor((new Date(d).getTime() - new Date(today).getTime()) / (24 * 60 * 60 * 1000));
+        if (diff < 0) echu++;
+        else if (diff < 90) urgent++;
+      }
+      res.json({ total: list.length, urgent, echu });
+    } catch (err: any) {
+      log(`Erreur GET chaudieres/counts: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur." });
+    }
+  });
+
+  app.get("/api/chaudieres/:id", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const [row] = await db.select().from(chaudieres).where(and(eq(chaudieres.id, id), eq(chaudieres.userId, userId))).limit(1);
+      if (!row) return res.status(404).json({ error: "Chaudière non trouvée." });
+      res.json(row);
+    } catch (err: any) {
+      log(`Erreur GET chaudiere: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur." });
+    }
+  });
+
+  app.post("/api/chaudieres", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const body = req.body;
+      if (!body.clientId || !body.typeChaudiere || !body.marque || !body.dateDernierEntretien || !body.dateProchainEntretien || !body.typeContrat) {
+        return res.status(400).json({ error: "Champs obligatoires : clientId, typeChaudiere, marque, dateDernierEntretien, dateProchainEntretien, typeContrat." });
+      }
+      const data = {
+        userId,
+        clientId: body.clientId,
+        typeChaudiere: String(body.typeChaudiere).trim(),
+        marque: String(body.marque).trim(),
+        modele: body.modele ? String(body.modele).trim() : null,
+        puissanceKw: body.puissanceKw != null ? String(body.puissanceKw) : null,
+        anneeInstallation: body.anneeInstallation != null ? parseInt(body.anneeInstallation, 10) : null,
+        numeroSerie: body.numeroSerie ? String(body.numeroSerie).trim() : null,
+        localisation: body.localisation ? String(body.localisation).trim() : null,
+        dateDernierEntretien: body.dateDernierEntretien,
+        dateProchainEntretien: body.dateProchainEntretien,
+        typeContrat: String(body.typeContrat).trim(),
+        montantAnnuelContrat: body.montantAnnuelContrat != null ? String(body.montantAnnuelContrat) : null,
+        remarques: body.remarques ? String(body.remarques).trim() : null,
+      };
+      const [row] = await db.insert(chaudieres).values(data as any).returning();
+      log(`Chaudière créée: ${row?.id}`, "api");
+      res.status(201).json(row);
+    } catch (err: any) {
+      log(`Erreur POST chaudieres: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur lors de l'ajout de la chaudière." });
+    }
+  });
+
+  app.put("/api/chaudieres/:id", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const [existing] = await db.select().from(chaudieres).where(eq(chaudieres.id, id)).limit(1);
+      if (!existing || existing.userId !== userId) return res.status(404).json({ error: "Chaudière non trouvée." });
+      const body = req.body;
+      const updates: Record<string, any> = { updatedAt: new Date() };
+      if (body.clientId != null) updates.clientId = body.clientId;
+      if (body.typeChaudiere != null) updates.typeChaudiere = String(body.typeChaudiere).trim();
+      if (body.marque != null) updates.marque = String(body.marque).trim();
+      if (body.modele !== undefined) updates.modele = body.modele ? String(body.modele).trim() : null;
+      if (body.puissanceKw !== undefined) updates.puissanceKw = body.puissanceKw != null ? String(body.puissanceKw) : null;
+      if (body.anneeInstallation !== undefined) updates.anneeInstallation = body.anneeInstallation != null ? parseInt(body.anneeInstallation, 10) : null;
+      if (body.numeroSerie !== undefined) updates.numeroSerie = body.numeroSerie ? String(body.numeroSerie).trim() : null;
+      if (body.localisation !== undefined) updates.localisation = body.localisation ? String(body.localisation).trim() : null;
+      if (body.dateDernierEntretien != null) updates.dateDernierEntretien = body.dateDernierEntretien;
+      if (body.dateProchainEntretien != null) updates.dateProchainEntretien = body.dateProchainEntretien;
+      if (body.typeContrat != null) updates.typeContrat = String(body.typeContrat).trim();
+      if (body.montantAnnuelContrat !== undefined) updates.montantAnnuelContrat = body.montantAnnuelContrat != null ? String(body.montantAnnuelContrat) : null;
+      if (body.remarques !== undefined) updates.remarques = body.remarques ? String(body.remarques).trim() : null;
+      if (body.dateDerniereRelance !== undefined) updates.dateDerniereRelance = body.dateDerniereRelance || null;
+      const [updated] = await db.update(chaudieres).set(updates).where(eq(chaudieres.id, id)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      log(`Erreur PUT chaudieres: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur." });
+    }
+  });
+
+  app.delete("/api/chaudieres/:id", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const [existing] = await db.select().from(chaudieres).where(eq(chaudieres.id, id)).limit(1);
+      if (!existing || existing.userId !== userId) return res.status(404).json({ error: "Chaudière non trouvée." });
+      await db.delete(chaudieres).where(eq(chaudieres.id, id));
+      log(`Chaudière supprimée: ${id}`, "api");
+      res.status(204).send();
+    } catch (err: any) {
+      log(`Erreur DELETE chaudieres: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur." });
+    }
+  });
+
+  // --- Chaudières : interventions (historique)
+  app.get("/api/chaudieres/:id/interventions", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const [ch] = await db.select().from(chaudieres).where(and(eq(chaudieres.id, id), eq(chaudieres.userId, userId))).limit(1);
+      if (!ch) return res.status(404).json({ error: "Chaudière non trouvée." });
+      const list = await db.select().from(interventionsChaudieres).where(eq(interventionsChaudieres.chaudiereId, id)).orderBy(desc(interventionsChaudieres.dateIntervention));
+      res.json(list);
+    } catch (err: any) {
+      log(`Erreur GET interventions: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur." });
+    }
+  });
+
+  app.post("/api/chaudieres/:id/interventions", async (req, res) => {
+    try {
+      if (!db) return res.status(503).json({ error: "Base de données non disponible" });
+      const userId = getUserId(req);
+      const { id } = req.params;
+      const [ch] = await db.select().from(chaudieres).where(and(eq(chaudieres.id, id), eq(chaudieres.userId, userId))).limit(1);
+      if (!ch) return res.status(404).json({ error: "Chaudière non trouvée." });
+      const body = req.body;
+      if (!body.dateIntervention || !body.typeIntervention) {
+        return res.status(400).json({ error: "dateIntervention et typeIntervention sont requis." });
+      }
+      const data = {
+        chaudiereId: id,
+        dateIntervention: body.dateIntervention,
+        typeIntervention: String(body.typeIntervention).trim(),
+        description: body.description ? String(body.description).trim() : null,
+        piecesChangees: body.piecesChangees ? String(body.piecesChangees).trim() : null,
+        tempsPasseHeures: body.tempsPasseHeures != null ? String(body.tempsPasseHeures) : null,
+        montantFacture: body.montantFacture != null ? String(body.montantFacture) : null,
+        factureId: body.factureId || null,
+        rapportUrl: body.rapportUrl || null,
+      };
+      const [row] = await db.insert(interventionsChaudieres).values(data as any).returning();
+      res.status(201).json(row);
+    } catch (err: any) {
+      log(`Erreur POST intervention: ${err?.message}`, "api");
+      res.status(500).json({ error: err?.message || "Erreur." });
+    }
+  });
+
   // Route pour envoyer le devis par email
   app.post("/api/quotes/send-email", upload.single('pdf'), async (req, res) => {
     try {
@@ -581,7 +1044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pour Vercel serverless, on ne crée pas de serveur HTTP
   // Le serveur n'est nécessaire que pour le mode standalone
   if (process.env.VERCEL) {
-    return; // Pas de serveur HTTP dans l'environnement Vercel
+    return undefined as unknown as Server;
   }
 
   const httpServer = createServer(app);

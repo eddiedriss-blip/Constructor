@@ -1,13 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { Link, useLocation } from 'wouter';
-import { Menu, X, Home, Calculator, Building, Calendar, Workflow, FileText, Users, User } from 'lucide-react';
+import { Menu, X, Home, Calculator, Building, Calendar, Workflow, FileText, Users, User, BookOpen, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [location] = useLocation();
   const dragX = useMotionValue(0);
+  const { user } = useAuth();
+  const [chaudieresUrgentCount, setChaudieresUrgentCount] = useState(0);
+
+  useEffect(() => {
+    const userId = user?.id ?? 'default-user';
+    fetch('/api/chaudieres/counts', { headers: { 'X-User-Id': userId } })
+      .then((r) => r.ok ? r.json() : { urgent: 0, echu: 0 })
+      .then((data) => setChaudieresUrgentCount((data.urgent ?? 0) + (data.echu ?? 0)))
+      .catch(() => {});
+  }, [user?.id]);
 
   const menuItems = [
     { icon: Home, label: 'Vue d\'ensemble', path: '/dashboard' },
@@ -16,6 +27,8 @@ export default function Sidebar() {
     { icon: Calendar, label: 'Planning', path: '/dashboard/planning' },
     { icon: Workflow, label: 'CRM Pipeline', path: '/dashboard/crm' },
     { icon: FileText, label: 'Générateur de Devis', path: '/dashboard/quotes' },
+    { icon: BookOpen, label: 'Comptabilité', path: '/dashboard/comptabilite' },
+    { icon: Flame, label: 'Mes chaudières', path: '/dashboard/chaudieres' },
     { icon: Users, label: 'Équipe', path: '/dashboard/team' },
     { icon: User, label: 'Clients', path: '/dashboard/clients' },
   ];
@@ -163,7 +176,7 @@ export default function Sidebar() {
                     <Link href={item.path} onClick={() => setIsOpen(false)}>
                       <div
                         className={cn(
-                          "flex items-center space-x-3 p-3 sm:p-2.5 rounded-lg transition-all cursor-pointer group min-h-11 sm:min-h-0",
+                          "flex items-center space-x-3 w-full p-3 sm:p-2.5 rounded-lg transition-all cursor-pointer group min-h-11 sm:min-h-0",
                           isActive
                             ? 'bg-violet-50 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400'
                             : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200'
@@ -182,6 +195,11 @@ export default function Sidebar() {
                           <item.icon size={18} className="sm:w-4 sm:h-4" />
                         </motion.div>
                         <span className="text-base sm:text-sm font-medium">{item.label}</span>
+                        {item.path === '/dashboard/chaudieres' && chaudieresUrgentCount > 0 && (
+                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-medium text-white">
+                            {chaudieresUrgentCount}
+                          </span>
+                        )}
                       </div>
                     </Link>
                   </motion.li>

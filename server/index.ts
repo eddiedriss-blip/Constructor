@@ -73,9 +73,8 @@ app.use((req, res, next) => {
     // Ensure port is valid
     const finalPort = (isNaN(port) || port <= 0) ? defaultPort : port;
 
-    // On Windows and macOS, use localhost instead of 0.0.0.0
-    // On Linux, use 0.0.0.0 for network access
-    const host = (process.platform === "win32" || process.platform === "darwin") ? "127.0.0.1" : "0.0.0.0";
+    // Écouter sur toutes les interfaces pour accès en ligne (localhost + réseau local)
+    const host = "0.0.0.0";
 
     // Build listen options
     const listenOptions: any = {
@@ -102,7 +101,7 @@ app.use((req, res, next) => {
     });
 
     server.listen(listenOptions, () => {
-      log(`serving on http://${host}:${finalPort}`);
+      log(`serving on http://localhost:${finalPort} (accès réseau: http://<votre-IP>:${finalPort})`);
     });
   } catch (error: any) {
     log(`Erreur fatale: ${error?.message || error}`, "server");

@@ -24,6 +24,8 @@ import EstimationPage from "@/pages/EstimationPage";
 import ClientsPage from "@/pages/ClientsPage";
 import CRMPipelinePage from "@/pages/CRMPipelinePage";
 import TeamPage from "@/pages/TeamPage";
+import ComptabilitePage from "@/pages/ComptabilitePage";
+import ChaudieresPage from "@/pages/ChaudieresPage";
 import NotFound from "@/pages/not-found";
 
 const pageVariants = {
@@ -92,6 +94,10 @@ function Router() {
         return <ProtectedRoute><CRMPipelinePage /></ProtectedRoute>;
       case "/dashboard/team":
         return <ProtectedRoute><TeamPage /></ProtectedRoute>;
+      case "/dashboard/comptabilite":
+        return <ProtectedRoute><ComptabilitePage /></ProtectedRoute>;
+      case "/dashboard/chaudieres":
+        return <ProtectedRoute><ChaudieresPage /></ProtectedRoute>;
       default:
         return <NotFound />;
     }
