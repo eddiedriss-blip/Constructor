@@ -2,7 +2,8 @@ import express, { type Express, type Request as ExpressRequest } from "express";
 import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
-import { analyzeConstructionImage, generateVisualization } from "./openai";
+// Import avec extension .js pour compatibilité Vercel (ESM strict)
+import { analyzeConstructionImage, generateVisualization } from "./openai.js";
 import multer from "multer";
 import { log } from "./vite";
 import { db } from "./db";
